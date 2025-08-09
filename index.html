@@ -1,0 +1,128 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Wasm Mandelbrot Explorer</title>
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #111; color: white; font-family: sans-serif; }
+        canvas { display: block; }
+        #info { position: absolute; top: 10px; left: 10px; padding: 5px; background: rgba(0,0,0,0.5); border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <canvas id="mandelbrot-canvas"></canvas>
+    <div id="info">
+        <p>マウスホイールでズーム、ドラッグで移動</p>
+        <p id="zoom-level"></p>
+        <p id="iterations-count"></p>
+    </div>
+
+    <script type="module">
+        import init, { render } from './pkg/mandelbrot_zoom.js';
+
+        async function main() {
+            await init();
+
+            const canvas = document.getElementById('mandelbrot-canvas');
+            const ctx = canvas.getContext('2d');
+            const zoomLevelEl = document.getElementById('zoom-level');
+            const iterationsCountEl = document.getElementById('iterations-count');
+
+            const resizeCanvas = () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            };
+            window.addEventListener('resize', () => {
+                resizeCanvas();
+                requestDraw();
+            });
+            resizeCanvas();
+
+            let centerX = -0.75;
+            let centerY = 0.0;
+            let scale = 3.5;
+            let maxIterations = 50;
+
+            let needsRedraw = true;
+            const requestDraw = () => { needsRedraw = true; };
+
+            const draw = () => {
+                if (!needsRedraw) {
+                    requestAnimationFrame(draw);
+                    return;
+                }
+                needsRedraw = false;
+                
+                // ズームレベルに応じて計算回数を増やす
+                maxIterations = Math.floor(50 + Math.max(0, -Math.log10(scale) * 25));
+
+                const pixelData = render(canvas.width, canvas.height, centerX, centerY, scale, maxIterations);
+                const imageData = new ImageData(new Uint8ClampedArray(pixelData), canvas.width, canvas.height);
+                ctx.putImageData(imageData, 0, 0);
+
+                zoomLevelEl.textContent = `ズーム: x${(1 / scale).toExponential(2)}`;
+                iterationsCountEl.textContent = `計算回数: ${maxIterations}`;
+                
+                requestAnimationFrame(draw);
+            };
+
+            // ズーム処理
+            canvas.addEventListener('wheel', event => {
+                event.preventDefault();
+
+                const zoomFactor = event.deltaY < 0 ? 0.9 : 1.1;
+
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = event.clientX - rect.left;
+                const mouseY = event.clientY - rect.top;
+
+                const aspect = canvas.width / canvas.height;
+                const pointX = centerX + (mouseX / canvas.width - 0.5) * scale * aspect;
+                const pointY = centerY + (mouseY / canvas.height - 0.5) * scale;
+
+                scale *= zoomFactor;
+
+                centerX = pointX - (pointX - centerX) * zoomFactor;
+                centerY = pointY - (pointY - centerY) * zoomFactor;
+
+                requestDraw();
+            });
+
+            // ドラッグ（パン）処理
+            let isDragging = false;
+            let lastX, lastY;
+
+            canvas.addEventListener('mousedown', event => {
+                isDragging = true;
+                lastX = event.clientX;
+                lastY = event.clientY;
+            });
+            
+            canvas.addEventListener('mousemove', event => {
+                if (!isDragging) return;
+                const dx = event.clientX - lastX;
+                const dy = event.clientY - lastY;
+                
+                const aspect = canvas.width / canvas.height;
+                centerX -= (dx / canvas.width) * scale * aspect;
+                centerY -= (dy / canvas.height) * scale;
+                
+                lastX = event.clientX;
+                lastY = event.clientY;
+                requestDraw();
+            });
+
+            window.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+            
+            requestDraw();
+
+            draw();
+        }
+
+        main();
+    </script>
+</body>
+</html>
