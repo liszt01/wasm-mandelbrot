@@ -6,17 +6,22 @@ struct Complex {
     imag: f64,
 }
 
-fn get_color(iteration: u32, max_iterations: u32) -> [u8; 3] {
+fn get_color(iteration: u32, max_iterations: u32, z: &Complex) -> [u8; 3] { // zを引数に追加
     if iteration == max_iterations {
         return [0, 0, 0]; // 黒
     }
-    // 滑らかな色を計算
-    let i = iteration as f64;
-    let hue = (360.0 * i / max_iterations as f64) % 360.0;
-    let saturation = 1.0;
-    let value = 1.0;
 
-    // HSVからRGBへの変換
+    // 正規化された反復回数を計算
+    let log_zn = (z.real * z.real + z.imag * z.imag).ln() / 2.0;
+    let nu = (log_zn / 2.0f64.ln()).ln() / 2.0f64.ln();
+    let smooth_iteration = iteration as f64 + 1.0 - nu;
+
+    // smooth_iterationを元に色を決定（例：HSVカラーモデル）
+    let hue = (360.0 * smooth_iteration / max_iterations as f64) % 360.0;
+    let saturation = 0.8;
+    let value = 0.9;
+
+    // HSVからRGBへの変換ロジック (変更なし)
     let c = value * saturation;
     let x = c * (1.0 - ((hue / 60.0) % 2.0 - 1.0).abs());
     let m = value - c;
@@ -49,27 +54,27 @@ pub fn render(
 
     for y_pixel in 0..height {
         for x_pixel in 0..width {
-            // ピクセル座標を複素平面上の点にマッピング
             let cx = center_x + scale * (x_pixel as f64 / width as f64 - 0.5) * aspect_ratio;
             let cy = center_y + scale * (y_pixel as f64 / height as f64 - 0.5);
             let c = Complex { real: cx, imag: cy };
-
             let mut z = Complex { real: 0.0, imag: 0.0 };
             let mut iteration = 0;
-
-            while z.real * z.real + z.imag * z.imag <= 4.0 && iteration < max_iterations {
+            
+            // 脱出半径は16 (4の2乗) など、大きめに取るとより滑らかになる
+            while z.real * z.real + z.imag * z.imag <= 16.0 && iteration < max_iterations {
                 let temp_real = z.real * z.real - z.imag * z.imag + c.real;
                 z.imag = 2.0 * z.real * z.imag + c.imag;
                 z.real = temp_real;
                 iteration += 1;
             }
 
-            let color = get_color(iteration, max_iterations);
+            // zをget_colorに渡す
+            let color = get_color(iteration, max_iterations, &z);
             let index = ((y_pixel * width + x_pixel) * 4) as usize;
-            pixels[index] = color[0];     // R
-            pixels[index + 1] = color[1]; // G
-            pixels[index + 2] = color[2]; // B
-            pixels[index + 3] = 255;      // Alpha
+            pixels[index] = color[0];
+            pixels[index + 1] = color[1];
+            pixels[index + 2] = color[2];
+            pixels[index + 3] = 255;
         }
     }
     pixels

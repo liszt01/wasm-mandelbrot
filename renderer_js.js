@@ -1,7 +1,17 @@
-function getColorJS(iteration, maxIterations) {
+function getColorJS(iteration, maxIterations, zx, zy) { // zxとzyを引数に追加
     if (iteration === maxIterations) return [0, 0, 0];
-    const hue = (360 * iteration / maxIterations) % 360;
-    const saturation = 1.0, value = 1.0;
+
+    // 正規化された反復回数を計算
+    const log_zn = Math.log(zx * zx + zy * zy) / 2;
+    const nu = Math.log(log_zn / Math.log(2)) / Math.log(2);
+    const smoothIteration = iteration + 1 - nu;
+    
+    // smoothIterationを元に色を決定（例：HSVカラーモデル）
+    const hue = (360 * smoothIteration / maxIterations) % 360;
+    const saturation = 0.8;
+    const value = 0.9;
+
+    // HSVからRGBへの変換ロジック (変更なし)
     const c = value * saturation;
     const x = c * (1 - Math.abs((hue / 60) % 2 - 1));
     const m = value - c;
@@ -25,13 +35,15 @@ function renderMandelbrotJS(ctx, width, height, centerX, centerY, scale, maxIter
             const cx = centerX + (x / width - 0.5) * scale * aspect;
             const cy = centerY + (y / height - 0.5) * scale;
             let zx = 0.0, zy = 0.0, iteration = 0;
-            while (zx * zx + zy * zy <= 4.0 && iteration < maxIterations) {
+            while (zx * zx + zy * zy <= 16.0 && iteration < maxIterations) {
                 const temp_zx = zx * zx - zy * zy + cx;
                 zy = 2.0 * zx * zy + cy;
                 zx = temp_zx;
                 iteration++;
             }
-            const color = getColorJS(iteration, maxIterations);
+            
+            // zxとzyをgetColorJSに渡す
+            const color = getColorJS(iteration, maxIterations, zx, zy);
             const index = (y * width + x) * 4;
             pixels.set(color, index);
             pixels[index + 3] = 255;
