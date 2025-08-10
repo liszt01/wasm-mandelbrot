@@ -16,7 +16,29 @@
         <p>マウスホイールでズーム、ドラッグで移動</p>
         <p id="zoom-level"></p>
         <p id="iterations-count"></p>
-        <p id="render-time"></p> </div>
+        <p id="render-time"></p>
+    </div>
+    
+    <div id="animation-controls" style="position: absolute; top: 10px; left: 200px; padding: 10px; background: rgba(0,0,0,0.7); border-radius: 5px;">
+      <h3>アニメーションズーム</h3>
+      <div>
+        <label>ターゲット X:</label>
+        <input type="text" id="animate-target-x-js" value="0.0">
+      </div>
+      <div>
+        <label>ターゲット Y:</label>
+        <input type="text" id="animate-target-y-js" value="0.0">
+      </div>
+      <div>
+        <label>ズームステップ:</label>
+        <input type="number" id="animate-steps-js" value="100" min="1">
+      </div>
+      <div>
+        <label>ステップごとのズーム倍率:</label>
+        <input type="number" id="animate-zoom-factor-js" value="0.98" min="0.5" max="0.999" step="0.001">
+      </div>
+      <button id="start-animation-button-js">アニメーション開始</button>
+    </div>
 
     <script>
         // Wasmを使わないので、type="module" は不要
@@ -127,6 +149,52 @@
             requestAnimationFrame(draw);
         };
 
+        let animationIntervalIdJS = null;
+        let animationStepJS = 0;
+        let targetCenterXJS = 0.0;
+        let targetCenterYJS = 0.0;
+        let totalStepsJS = 100;
+        let zoomFactorPerStepJS = 0.98;
+
+        const startAnimationJS = () => {
+            targetCenterXJS = parseFloat(document.getElementById('animate-target-x-js').value);
+            targetCenterYJS = parseFloat(document.getElementById('animate-target-y-js').value);
+            totalStepsJS = parseInt(document.getElementById('animate-steps-js').value, 10);
+            zoomFactorPerStepJS = parseFloat(document.getElementById('animate-zoom-factor-js').value);
+            animationStepJS = 0;
+
+            if (isNaN(targetCenterXJS) || isNaN(targetCenterYJS) || isNaN(totalStepsJS) || isNaN(zoomFactorPerStepJS) || totalStepsJS <= 0 || zoomFactorPerStepJS <= 0 || zoomFactorPerStepJS >= 1) {
+                alert("アニメーション設定が無効です。");
+                return;
+            }
+
+            if (animationIntervalIdJS) {
+                clearInterval(animationIntervalIdJS);
+                animationIntervalIdJS = null;
+            }
+
+            animationIntervalIdJS = setInterval(() => {
+                if (animationStepJS < totalStepsJS) {
+                    const aspect = canvas.width / canvas.height;
+                    const deltaX = targetCenterXJS - centerX;
+                    const deltaY = targetCenterYJS - centerY;
+
+                    centerX += deltaX * 0.05;
+                    centerY += deltaY * 0.05;
+
+                    scale *= zoomFactorPerStepJS;
+                    requestDraw();
+                    animationStepJS++;
+                } else {
+                    clearInterval(animationIntervalIdJS);
+                    animationIntervalIdJS = null;
+                    console.log("JSアニメーション終了");
+                }
+            }, 30);
+        };
+
+        document.getElementById('start-animation-button-js').addEventListener('click', startAnimationJS);
+        
         canvas.addEventListener('wheel', event => {
             event.preventDefault();
             const zoomFactor = event.deltaY < 0 ? 0.90 : 1.10;
@@ -158,6 +226,29 @@
         });
         window.addEventListener('mouseup', () => { isDragging = false; });
         
+        canvas.addEventListener('click', (event) => {
+            // 1. マウスのキャンバス上の座標を取得
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+
+            // 2. キャンバス座標を複素平面上の座標に変換 (既存のロジックを再利用)
+            const aspect = canvas.width / canvas.height;
+            const pointX = centerX + (mouseX / canvas.width - 0.5) * scale * aspect;
+            const pointY = centerY + (mouseY / canvas.height - 0.5) * scale;
+
+            // 3. アニメーション用の入力フォームを取得
+            //    (idは各HTMLファイルに合わせてください)
+            const targetXInput = document.getElementById('animate-target-x') || document.getElementById('animate-target-x-js');
+            const targetYInput = document.getElementById('animate-target-y') || document.getElementById('animate-target-y-js');
+
+            // 4. 取得した座標をフォームの入力値として設定
+            if (targetXInput && targetYInput) {
+                targetXInput.value = pointX.toExponential(10); // 指数表記で高精度に表示
+                targetYInput.value = pointY.toExponential(10);
+                console.log(`Clicked coordinates: (${pointX}, ${pointY})`);
+            }
+        });
         draw(); // 描画ループを開始
 
     </script>
