@@ -7,14 +7,24 @@
     <style>
         body, html { margin: 0; padding: 0; overflow: hidden; background-color: #111; color: white; font-family: sans-serif; }
         canvas { display: block; }
-        .control-panel { position: absolute; top: 10px; padding: 10px; background: rgba(0,0,0,0.7); border-radius: 5px; font-size: 12px; }
-        .control-panel h3 { margin-top: 0; }
-        .control-panel div { margin-bottom: 5px; }
-        .control-panel label { display: block; margin-bottom: 2px; }
-        .control-panel input, .control-panel textarea, .control-panel button { width: calc(100% - 10px); box-sizing: border-box; }
-        #info { left: 10px; }
-        #renderer-toggle { left: 250px; }
-        #pert-controls { left: 500px; width: 300px; }
+
+        /* 全てのコントロールをまとめる親コンテナのスタイル */
+        #controls-container {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            display: flex; /* Flexboxを有効化 */
+            flex-direction: column; /* 子要素を縦に並べる */
+            align-items: flex-start; /* 左端で揃える */
+            gap: 15px; /* 各パネルの間に15pxの間隔を空ける */
+        }
+
+        /* 各操作パネルの共通スタイル */
+        .control-panel {
+            padding: 10px;
+            background: rgba(0,0,0,0.7);
+            border-radius: 5px;
+        }
 
         .toggle-switch { position: relative; display: inline-block; width: 60px; height: 34px; }
         .toggle-switch input { opacity: 0; width: 0; height: 0; }
@@ -27,165 +37,167 @@
 <body>
     <canvas id="mandelbrot-canvas"></canvas>
 
-    <div id="info" class="control-panel">
-        <h2 id="renderer-title">Wasm版</h2>
-        <p>マウスホイールでズーム、ドラッグで移動</p>
-        <p id="zoom-level"></p>
-        <p id="iterations-count"></p>
-        <p id="render-time"></p>
-    </div>
+    <div id="controls-container">
+        <div id="info" class="control-panel">
+            <h3>描画エンジン</h3>
+            <span>JavaScript</span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="engine-toggle" checked>
+                <span class="slider"></span>
+            </label>
+            <span>Wasm</span>
 
-    <div id="renderer-toggle" class="control-panel">
-        <h3>描画エンジン</h3>
-        <span>JavaScript</span>
-        <label class="toggle-switch">
-            <input type="checkbox" id="engine-toggle" checked>
-            <span class="slider"></span>
-        </label>
-        <span>Wasm</span>
-    </div>
-    
-    <div id="pert-controls" class="control-panel">
-        <h3>摂動論 (Perturbation)</h3>
-        <div>
-            <label>Center X (高精度):</label>
-            <textarea id="pert-center-x" rows="3">-1.768610493014677074503175653270226520239677907588665494812359766720721863405719772</textarea>
+            <div>
+                <label>Center X:</label>
+                <textarea id="center-x" rows="3">-0.75</textarea>
+            </div>
+            <div>
+                <label>Center Y:</label>
+                <textarea id="center-y" rows="3">0.0</textarea>
+            </div>
+            <div>
+                <label>Scale:</label>
+                <input type="number" id="scale" value="3.5">
+            </div>
+            <div>
+                <label>Bailout Radius Squared:</label>
+                <input type="number" id="bailout-radius-squared" value="100.0">
+            </div>
+            <div>
+                <label>Max Iterations:</label>
+                <input type="number" id="max-iterations" value="50">
+            </div>
+            <p id="render-time"></p>
         </div>
-        <div>
-            <label>Center Y (高精度):</label>
-            <textarea id="pert-center-y" rows="3">0.001266613503868717702066411192242601576193940560471409839484404683951701639387836214</textarea>
-        </div>
-        <div>
-            <label>Scale:</label>
-            <input type="text" id="pert-scale" value="1e-20">
-        </div>
-         <div>
-            <label>Max Iterations:</label>
-            <input type="number" id="pert-max-iter" value="20000">
-        </div>
-        <button id="pert-render-button">摂動論で描画</button>
     </div>
 
     <script type="module">
-        // 状態管理とUIロジック
+        Decimal.set({ precision: 100 });
+
         const canvas = document.getElementById('mandelbrot-canvas');
         const ctx = canvas.getContext('2d');
-        const zoomLevelEl = document.getElementById('zoom-level');
-        const iterationsCountEl = document.getElementById('iterations-count');
-        const renderTimeEl = document.getElementById('render-time');
         const engineToggle = document.getElementById('engine-toggle');
-        const rendererTitle = document.getElementById('renderer-title');
+        const renderTimeEl = document.getElementById('render-time');
 
-        let centerX = -0.75, centerY = 0.0, scale = 3.5, maxIterations = 50;
+        // 中心座標
+        const centerX = new Decimal(document.getElementById('center-x').value);
+        const centerY = new Decimal(document.getElementById('center-y').value);
+
+        const scale = parseFloat(document.getElementById('scale').value);
+        const bailoutSq = parseFloat(document.getElementById('bailout-radius-squared').value);
+        const maxIters = parseInt(document.getElementById('max-iterations').value, 10);
+
         let needsRedraw = true;
         let renderer = null;
 
+        function updateCenterCoords() {
+            document.getElementById('center-x').value = centerX.toString();
+            document.getElementById('center-y').value = centerY.toString();
+        }
+
         const requestDraw = () => { needsRedraw = true; };
 
-        // 通常描画のループ
         const draw = () => {
-            if (!needsRedraw || !renderer || renderer.isPerturbation) { // 摂動モードでは自動更新しない
+            if (!needsRedraw || !renderer) {
                 requestAnimationFrame(draw);
                 return;
             }
             needsRedraw = false;
-            maxIterations = Math.floor(50 + Math.max(0, -Math.log10(scale) * 25));
+            // maxIterations = Math.floor(50 + Math.max(0, -Math.log10(scale) * 25));
 
+            renderTimeEl.textContent = `描画中... (基準軌道を計算中)`;
+            const orbit = renderer.calculate_references(centerX.toString(), centerY.toString(), maxIters);
+            
+            renderTimeEl.textContent = `描画中... (ピクセルを描画中)`;
             const startTime = performance.now();
-            // 通常レンダラーを呼び出す（存在すれば）
-            if (typeof renderer.render === 'function') {
-                renderer.render(ctx, canvas.width, canvas.height, centerX, centerY, scale, maxIterations);
-            }
+            renderer.render_perturbation(ctx, canvas.width, canvas.height, scale, maxIters, orbit);
             const endTime = performance.now();
 
-            zoomLevelEl.textContent = `ズーム: x${(1 / scale).toExponential(2)}`;
-            iterationsCountEl.textContent = `計算回数: ${maxIterations}`;
             renderTimeEl.textContent = `描画時間: ${(endTime - startTime).toFixed(2)} ms`;
+
+            // zoomLevelEl.textContent = `ズーム: x${(1 / scale).toExponential(2)}`;
+            // iterationsCountEl.textContent = `計算回数: ${maxIterations}`;
+
             requestAnimationFrame(draw);
         };
         
+        // --- イベントリスナー ---
         async function switchRenderer() {
             const useWasm = engineToggle.checked;
-            rendererTitle.textContent = useWasm ? "Wasm版" : "JavaScript版";
-            // 摂動論を実装したので、通常レンダラーのモジュール名を変更
             const rendererModule = useWasm ? await import('./renderer_wasm.js') : await import('./renderer_js.js');
             renderer = await rendererModule.initialize();
-            
-            // isPerturbationプロパティで通常モードか判断
-            renderer.isPerturbation = false; 
-            
-            // 初回描画
             requestDraw();
         }
         engineToggle.addEventListener('change', switchRenderer);
         
-        // --- 共通のイベントリスナー ---
-        const resizeCanvas = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+        const resizeCanvas = () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        };
         window.addEventListener('resize', () => { resizeCanvas(); requestDraw(); });
 
+        // ズーム
         canvas.addEventListener('wheel', event => {
-            if (renderer && renderer.isPerturbation) return; // 摂動モードでは無効
             event.preventDefault();
+
             const zoomFactor = event.deltaY < 0 ? 0.90 : 1.10;
             const rect = canvas.getBoundingClientRect();
-            const mouseX = event.clientX - rect.left, mouseY = event.clientY - rect.top;
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
             const aspect = canvas.width / canvas.height;
-            const pointX = centerX + (mouseX / canvas.width - 0.5) * scale * aspect;
-            const pointY = centerY + (mouseY / canvas.height - 0.5) * scale;
+
+            const pointX = centerX.plus(
+                new Decimal(mouseX / canvas.width - 0.5)
+                    .times(scale)
+                    .times(aspect)
+            );
+            const pointY = centerY.plus(
+                new Decimal(mouseY / canvas.height - 0.5)
+                    .times(scale);
+            );
+
             scale *= zoomFactor;
-            centerX = pointX - (pointX - centerX) * zoomFactor;
-            centerY = pointY - (pointY - centerY) * zoomFactor;
+
+            centerX = pointX.minus(pointX.minus(centerX).times(zoomFactor));
+            centerY = pointY.minus(pointY.minus(centerY).times(zoomFactor));
+
+            updateCenterCoords();
             requestDraw();
         });
         
+        // ドラッグ
         let isDragging = false, lastX, lastY;
-        canvas.addEventListener('mousedown', e => { isDragging = true; lastX = e.clientX; lastY = e.clientY; });
+        canvas.addEventListener('mousedown', e => {
+            isDragging = true;
+            lastX = e.clientX;
+            lastY = e.clientY;
+        });
         canvas.addEventListener('mousemove', e => {
-            if (!isDragging || (renderer && renderer.isPerturbation)) return;
-            const dx = e.clientX - lastX, dy = e.clientY - lastY;
+            if (!isDragging) return;
+
+            const dx = e.clientX - lastX;
+            const dy = e.clientY - lastY;
             const aspect = canvas.width / canvas.height;
-            centerX -= (dx / canvas.width) * scale * aspect;
-            centerY -= (dy / canvas.height) * scale;
-            lastX = e.clientX; lastY = e.clientY;
+
+            centerX = centerX.minus(
+                new Decimal(dx / canvas.width)
+                    .times(scale)
+                    .times(aspect)
+            );
+            centerY = centerY.minus(
+                new Decimal(dy / canvas.height)
+                    .times(scale)
+            );
+
+            lastX = e.clientX;
+            lastY = e.clientY;
+
+            updateCenterCoords();
             requestDraw();
         });
         window.addEventListener('mouseup', () => { isDragging = false; });
-        
-        // 摂動論用の描画イベント
-        document.getElementById('pert-render-button').addEventListener('click', async () => {
-            if (!renderer) {
-                alert("レンダラーが初期化されていません。");
-                return;
-            }
-            if (typeof renderer.calculate_references !== 'function') {
-                alert("現在のレンダラーは摂動論をサポートしていません。");
-                return;
-            }
-            renderer.isPerturbation = true; // 摂動モードに設定
 
-            console.log("摂動論描画を開始します...");
-            renderTimeEl.textContent = `描画中... (基準軌道を計算中)`;
-            
-            const centerXStr = document.getElementById('pert-center-x').value;
-            const centerYStr = document.getElementById('pert-center-y').value;
-            const scaleValue = parseFloat(document.getElementById('pert-scale').value);
-            const maxItersValue = parseInt(document.getElementById('pert-max-iter').value, 10);
 
-            // 基準軌道計算
-            const orbit = renderer.calculate_references(centerXStr, centerYStr, maxItersValue);
-            
-            console.log(`基準軌道の計算完了。${orbit.length / 2} ステップ`);
-            renderTimeEl.textContent = `描画中... (ピクセルを描画中)`;
-
-            // 摂動描画
-            const startTime = performance.now();
-            renderer.render_perturbation(ctx, canvas.width, canvas.height, scaleValue, maxItersValue, orbit);
-            const endTime = performance.now();
-            renderTimeEl.textContent = `摂動描画完了: ${(endTime - startTime).toFixed(2)} ms`;
-            console.log("摂動論描画完了");
-        });
-
-        // 初期化処理
         resizeCanvas();
         switchRenderer();
         draw();
