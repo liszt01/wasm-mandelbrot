@@ -1,4 +1,4 @@
-import init, { render as renderWasm } from './pkg/mandelbrot_zoom.js';
+import init, { calculate_references as calculateReferencesWasm, render as renderWasm } from './pkg/mandelbrot_zoom.js';
 
 let wasmModule = null;
 
@@ -8,8 +8,9 @@ export async function initialize() {
         wasmModule = await init();
     }
     return {
-        render: (ctx, width, height, centerX, centerY, scale, maxIterations) => {
-            const pixelData = renderWasm(width, height, centerX, centerY, scale, maxIterations);
+        calculate_references: calculateReferencesWasm,
+        render_perturbation: (ctx, width, height, scale, maxIters, referenceOrbit) => {
+            const pixelData = renderWasm(width, height, scale, maxIters, referenceOrbit);
             const imageData = new ImageData(new Uint8ClampedArray(pixelData), width, height);
             ctx.putImageData(imageData, 0, 0);
         }
