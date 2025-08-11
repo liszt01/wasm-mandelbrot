@@ -105,10 +105,11 @@ pub fn render(
 
                 // Rebasing
                 let dradius_sq = dz.norm_sqr();
-                if radius_sq < dradius_sq || ref_iter == max_ref_iter - 1 {
+                let ref_z_sq = ref_z.norm_sqr();
+                if dradius_sq > ref_z_sq || ref_iter >= max_ref_iter - 1 {
                     dz = z;
                     ref_iter = 0;
-                    ref_z = Complex::new(reference_orbit[0], reference_orbit[1]);
+                    // ref_z = Complex::new(reference_orbit[0], reference_orbit[1]);
                 }
 
                 dz = 2.0 * ref_z * dz + dz * dz + dc;
