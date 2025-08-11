@@ -80,10 +80,10 @@
         const renderTimeEl = document.getElementById('render-time');
 
         // 中心座標
-        const centerX = new Decimal(document.getElementById('center-x').value);
-        const centerY = new Decimal(document.getElementById('center-y').value);
+        let centerX = new Decimal(document.getElementById('center-x').value);
+        let centerY = new Decimal(document.getElementById('center-y').value);
 
-        const scale = parseFloat(document.getElementById('scale').value);
+        let scale = parseFloat(document.getElementById('scale').value);
         const bailoutSq = parseFloat(document.getElementById('bailout-radius-squared').value);
         const maxIters = parseInt(document.getElementById('max-iterations').value, 10);
 
@@ -93,6 +93,9 @@
         function updateCenterCoords() {
             document.getElementById('center-x').value = centerX.toString();
             document.getElementById('center-y').value = centerY.toString();
+        }
+        function updateScale() {
+            document.getElementById('scale').value = scale;
         }
 
         const requestDraw = () => { needsRedraw = true; };
@@ -153,7 +156,7 @@
             );
             const pointY = centerY.plus(
                 new Decimal(mouseY / canvas.height - 0.5)
-                    .times(scale);
+                    .times(scale)
             );
 
             scale *= zoomFactor;
@@ -162,6 +165,7 @@
             centerY = pointY.minus(pointY.minus(centerY).times(zoomFactor));
 
             updateCenterCoords();
+            updateScale();
             requestDraw();
         });
         
@@ -197,6 +201,20 @@
         });
         window.addEventListener('mouseup', () => { isDragging = false; });
 
+        
+        // 中心座標・スケールなどの入力欄を監視
+        document.getElementById('center-x').addEventListener('input', e => {
+            centerX = new Decimal(e.target.value);
+            requestDraw();
+        });
+        document.getElementById('center-y').addEventListener('input', e => {
+            centerY = new Decimal(e.target.value);
+            requestDraw();
+        });
+        document.getElementById('scale').addEventListener('input', e => {
+            scale = parseFloat(e.target.value);
+            requestDraw();
+        });
 
         resizeCanvas();
         switchRenderer();

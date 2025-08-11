@@ -30,7 +30,7 @@ function getColorJS(iteration, maxIters, radiusSq) {
     const smoothIteration = iteration + 1 - nu;
     
     // smoothIterationを元に色を決定（例：HSVカラーモデル）
-    const hue = (360 * smoothIteration / maxIterations) % 360;
+    const hue = (360 * smoothIteration / maxIters) % 360;
     const saturation = 0.8;
     const value = 0.9;
 
@@ -65,9 +65,9 @@ function renderMandelbrotJS(ctx, width, height, scale, maxIters, referenceOrbit)
             let iter = 0, ref_iter = 0;
             let color = [0, 0, 0];
 
-            while (iter < maxItes) {
-                const ref_re = referenceOrbit[ref_iter * 2];
-                const ref_im = referenceOrbit[ref_iter * 2 + 1];
+            while (iter < maxIters) {
+                let ref_re = referenceOrbit[ref_iter * 2];
+                let ref_im = referenceOrbit[ref_iter * 2 + 1];
                 const z_re = ref_re + dz_re;
                 const z_im = ref_im + dz_im;
                 const r_sq = z_re * z_re + z_im + z_im;

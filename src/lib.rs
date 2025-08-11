@@ -6,7 +6,7 @@ use bigdecimal::ToPrimitive;
  
 // 1. 高精度な基準軌道を計算する関数
 #[wasm_bindgen]
-pub fn calculate_references_orbit(
+pub fn calculate_references(
     center_real_str: &str,
     center_imag_str: &str,
     max_iters: u32,
