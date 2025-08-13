@@ -165,7 +165,7 @@ function main() {
     jsWorker.onmessage = (e) => {
         const { imageData, time } = e.data;
         jsCtx.putImageData(imageData, 0, 0); // 受け取ったら即座に描画
-        jsStats.textContent = `Time: ${time.toFixed(2)} ms`;
+        // jsStats.textContent = `Time: ${time.toFixed(2)} ms`;
     };
     
     // Wasm Workerからのメッセージ受信時の処理
@@ -173,7 +173,7 @@ function main() {
         const { pixelData, time, width, height } = e.data;
         const imageData = new ImageData(new Uint8ClampedArray(pixelData), width, height);
         wasmCtx.putImageData(imageData, 0, 0); // 受け取ったら即座に描画
-        wasmStats.textContent = `Time: ${time.toFixed(2)} ms`;
+        // wasmStats.textContent = `Time: ${time.toFixed(2)} ms`;
     };
 
     // UIの初期値を設定
