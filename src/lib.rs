@@ -1,6 +1,7 @@
 // src/lib.rs (更新版 - 境界追跡法)
 use wasm_bindgen::prelude::*;
 use std::collections::HashMap;
+use std::cmp::{min, max};
 
 #[wasm_bindgen]
 pub fn render(
@@ -46,26 +47,52 @@ impl BoundaryTracer {
     }
 
     fn render(&mut self) -> Vec<u8> {
-        let mut rect_stack = vec![(0, 0, self.width - 1, self.height - 1)];
+        const MIN_DEPTH: u32 = 6;
+        const GRADIENT_THRESHOLD: u32 = 2;
+        let mut rect_stack = vec![(0, 0, self.width - 1, self.height - 1, 0)];
 
-        while let Some((x1, y1, x2, y2)) = rect_stack.pop() {
+        while let Some((x1, y1, x2, y2, depth)) = rect_stack.pop() {
             let c1 = self.get_pixel_color(x1, y1);
             let c2 = self.get_pixel_color(x2, y1);
             let c3 = self.get_pixel_color(x1, y2);
             let c4 = self.get_pixel_color(x2, y2);
 
-            if c1 == c2 && c1 == c3 && c1 == c4 {
-                let color = self.get_color_components(c1);
+            // ▼▼▼ 判断ロジックを刷新 ▼▼▼
+            let mut should_fill = false;
+            if depth >= MIN_DEPTH {
+                let c_min = min(min(c1, c2), min(c3, c4));
+                if c_min == self.max_iterations {
+                    should_fill = true;
+                } else {
+                    let c_max = max(max(c1, c2), max(c3, c4));
+                    if c_max < self.max_iterations && (c_max - c_min) <= GRADIENT_THRESHOLD {
+                        should_fill = true;
+                    }
+                }
+            }
+
+            if should_fill {
+                let avg_iteration = ((c1 + c2 + c3 + c4) / 4) as u32;
+                let color = self.get_color_components(avg_iteration);
                 self.fill_rect(x1, y1, x2, y2, color);
-            } else if x2 > x1 || y2 > y1 {
+            } 
+            // 分割条件
+            else if x2 > x1 || y2 > y1 {
                 let mid_x = x1 + (x2 - x1) / 2;
                 let mid_y = y1 + (y2 - y1) / 2;
+                let next_depth = depth + 1;
                 
-                rect_stack.push((x1, y1, mid_x, mid_y));
-                if mid_x < x2 { rect_stack.push((mid_x + 1, y1, x2, mid_y)); }
-                if mid_y < y2 { rect_stack.push((x1, mid_y + 1, mid_x, y2)); }
-                if mid_x < x2 && mid_y < y2 { rect_stack.push((mid_x + 1, mid_y + 1, x2, y2)); }
+                rect_stack.push((x1, y1, mid_x, mid_y, next_depth));
+                if mid_x < x2 { rect_stack.push((mid_x + 1, y1, x2, mid_y, next_depth)); }
+                if mid_y < y2 { rect_stack.push((x1, mid_y + 1, mid_x, y2, next_depth)); }
+                if mid_x < x2 && mid_y < y2 { rect_stack.push((mid_x + 1, mid_y + 1, x2, y2, next_depth)); }
+            } 
+            // 1ピクセルになった場合の最終描画
+            else {
+                let color = self.get_color_components(c1);
+                self.fill_rect(x1, y1, x2, y2, color);
             }
+            // ▲▲▲ ここまで ▲▲▲
         }
         self.pixels.clone()
     }

@@ -17,12 +17,12 @@ const DEFAULT_PARAMS = {
     centerX: -1.37012065,
     centerY: 0.0094956,
     scale: 4.0,
-    maxIterations: 2000,
+    maxIterations: 1500,
     bailoutRadius: 4.0,
 };
 const DEFAULT_ANIM_PARAMS = {
     targetZoom: 800000,
-    frameMultiplier: 1.5, // 1フレーム毎に50%ズームイン
+    frameMultiplier: 1.3, // 1フレーム毎に30%ズームイン
 };
 
 // --- アプリケーションの状態 ---

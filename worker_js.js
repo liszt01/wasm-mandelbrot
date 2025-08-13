@@ -18,7 +18,7 @@ self.onmessage = (e) => {
     const startTime = performance.now();
     
     // 境界追跡を開始
-    trace(0, 0, width - 1, height - 1);
+    trace(0, 0, width - 1, height - 1, 0);
 
     const endTime = performance.now();
     const imageData = new ImageData(pixels, width, height);
@@ -29,28 +29,55 @@ self.onmessage = (e) => {
     }, [imageData.data.buffer]);
 };
 
-// --- 境界追跡（再帰関数） ---
-function trace(x1, y1, x2, y2) {
-    // 四隅の色を計算 (キャッシュがあれば利用)
+// --- 境界追跡（再帰関数）---
+const MIN_DEPTH = 6; // この深さまでは強制的に分割 (新しいチェックが賢いので少し浅くても良い)
+const GRADIENT_THRESHOLD = 2; // 発散回数がこの値以下の差なら滑らかとみなす
+
+function trace(x1, y1, x2, y2, depth) {
     const c1 = getPixelColor(x1, y1);
     const c2 = getPixelColor(x2, y1);
     const c3 = getPixelColor(x1, y2);
     const c4 = getPixelColor(x2, y2);
 
-    // 四隅の色が同じなら、四角形を塗りつぶす
-    if (c1 === c2 && c1 === c3 && c1 === c4) {
-        const color = getColorComponents(c1);
+    // ▼▼▼ 判断ロジックを刷新 ▼▼▼
+    let shouldFill = false;
+    if (depth >= MIN_DEPTH) {
+        const c_min = Math.min(c1, c2, c3, c4);
+        // 条件1: 四隅すべてが集合内部
+        if (c_min === maxIterations) {
+            shouldFill = true;
+        }
+        // 条件2: 四隅すべてが外部、かつ色の差が小さい
+        else {
+            const c_max = Math.max(c1, c2, c3, c4);
+            if (c_max < maxIterations && (c_max - c_min) <= GRADIENT_THRESHOLD) {
+                shouldFill = true;
+            }
+        }
+    }
+
+    if (shouldFill) {
+        // グラデーション領域を塗る際は、四隅の平均色を使うとより滑らかになる
+        const avgIteration = Math.round((c1 + c2 + c3 + c4) / 4);
+        const color = getColorComponents(avgIteration);
         fillRect(x1, y1, x2, y2, color);
-    } 
-    // 色が違う、かつ四角形が1ピクセルより大きいなら、4分割して再帰
+    }
+    // 分割条件
     else if ((x2 - x1) > 0 || (y2 - y1) > 0) {
         const midX = Math.floor((x1 + x2) / 2);
         const midY = Math.floor((y1 + y2) / 2);
-        trace(x1, y1, midX, midY);
-        trace(midX + 1, y1, x2, midY);
-        trace(x1, midY + 1, midX, y2);
-        trace(midX + 1, midY + 1, x2, y2);
+        const nextDepth = depth + 1;
+        trace(x1, y1, midX, midY, nextDepth);
+        trace(midX + 1, y1, x2, midY, nextDepth);
+        trace(x1, midY + 1, midX, y2, nextDepth);
+        trace(midX + 1, midY + 1, x2, y2, nextDepth);
     }
+    // 1ピクセルになった場合の最終描画
+    else {
+         const color = getColorComponents(c1);
+         fillRect(x1, y1, x2, y2, color);
+    }
+    // ▲▲▲ ここまで ▲▲▲
 }
 
 // --- ヘルパー関数群 ---
