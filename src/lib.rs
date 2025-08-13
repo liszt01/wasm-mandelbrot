@@ -48,6 +48,7 @@ pub fn render(
     center_y: f64,
     scale: f64,
     max_iterations: u32,
+    bailout_sq: f64,
 ) -> Vec<u8> {
     let mut pixels = vec![0u8; (width * height * 4) as usize];
     let aspect_ratio = width as f64 / height as f64;
@@ -61,7 +62,7 @@ pub fn render(
             let mut iteration = 0;
             
             // 脱出半径は16 (4の2乗) など、大きめに取るとより滑らかになる
-            while z.real * z.real + z.imag * z.imag <= 16.0 && iteration < max_iterations {
+            while z.real * z.real + z.imag * z.imag <= bailout_sq && iteration < max_iterations {
                 let temp_real = z.real * z.real - z.imag * z.imag + c.real;
                 z.imag = 2.0 * z.real * z.imag + c.imag;
                 z.real = temp_real;

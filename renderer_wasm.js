@@ -8,8 +8,8 @@ export async function initialize() {
         wasmModule = await init();
     }
     return {
-        render: (ctx, width, height, centerX, centerY, scale, maxIterations) => {
-            const pixelData = renderWasm(width, height, centerX, centerY, scale, maxIterations);
+        render: (ctx, width, height, centerX, centerY, scale, maxIterations, bailoutSq) => {
+            const pixelData = renderWasm(width, height, centerX, centerY, scale, maxIterations, bailoutSq);
             const imageData = new ImageData(new Uint8ClampedArray(pixelData), width, height);
             ctx.putImageData(imageData, 0, 0);
         }

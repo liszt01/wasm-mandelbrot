@@ -25,7 +25,7 @@ function getColorJS(iteration, maxIterations, zx, zy) { // zxとzyを引数に�
     return [(r_prime + m) * 255, (g_prime + m) * 255, (b_prime + m) * 255];
 }
 
-function renderMandelbrotJS(ctx, width, height, centerX, centerY, scale, maxIterations) {
+function renderJS(ctx, width, height, centerX, centerY, scale, maxIterations, bailoutSq) {
     const imageData = ctx.createImageData(width, height);
     const pixels = imageData.data;
     const aspect = width / height;
@@ -35,7 +35,7 @@ function renderMandelbrotJS(ctx, width, height, centerX, centerY, scale, maxIter
             const cx = centerX + (x / width - 0.5) * scale * aspect;
             const cy = centerY + (y / height - 0.5) * scale;
             let zx = 0.0, zy = 0.0, iteration = 0;
-            while (zx * zx + zy * zy <= 16.0 && iteration < maxIterations) {
+            while (zx * zx + zy * zy <= bailoutSq && iteration < maxIterations) {
                 const temp_zx = zx * zx - zy * zy + cx;
                 zy = 2.0 * zx * zy + cy;
                 zx = temp_zx;
@@ -55,6 +55,6 @@ function renderMandelbrotJS(ctx, width, height, centerX, centerY, scale, maxIter
 // レンダラーオブジェクトを返す（Wasm版とインターフェースを合わせる）
 export async function initialize() {
     return {
-        render: renderMandelbrotJS
+        render: renderJS
     };
 }

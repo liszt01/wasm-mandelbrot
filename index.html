@@ -2,180 +2,140 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Mandelbrot Explorer</title>
+    <title>Wasm vs JS Mandelbrot Renderer</title>
     <style>
-        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #111; color: white; font-family: sans-serif; }
-        canvas { display: block; }
-
-        /* ▼▼▼ CSS修正箇所 ▼▼▼ */
-
-        /* 全てのコントロールをまとめる親コンテナのスタイル */
-        #controls-container {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            display: flex; /* Flexboxを有効化 */
-            flex-direction: column; /* 子要素を縦に並べる */
-            align-items: flex-start; /* 左端で揃える */
-            gap: 15px; /* 各パネルの間に15pxの間隔を空ける */
+        :root {
+            --bg-color: #f0f2f5;
+            --panel-bg: #ffffff;
+            --text-color: #333;
+            --primary-color: #007bff;
+            --secondary-color: #28a745;
+            --border-color: #dee2e6;
+            --shadow-color: rgba(0, 0, 0, 0.1);
         }
-
-        /* 各操作パネルの共通スタイル */
-        .control-panel {
-            /* position: absolute; は不要になったので削除 */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: var(--primary-color);
+            text-shadow: 1px 1px 2px var(--shadow-color);
+        }
+        .main-container {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            max-width: 1400px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .controls {
+            background-color: var(--panel-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px var(--shadow-color);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 300px;
+            height: fit-content;
+        }
+        .control-group { display: flex; flex-direction: column; }
+        .control-group label { margin-bottom: 5px; font-weight: bold; font-size: 0.9em; }
+        .control-group input { padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 1em; }
+        .button-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        .button-group button {
             padding: 10px;
-            background: rgba(0,0,0,0.7);
+            border: none;
             border-radius: 5px;
+            color: white;
+            background-color: var(--primary-color);
+            cursor: pointer;
+            transition: background-color 0.2s, opacity 0.2s;
         }
-
-        /* ▲▲▲ CSS修正箇所 ▲▲▲ */
-
-        /* トグルスイッチのスタイル (変更なし) */
-        .toggle-switch { position: relative; display: inline-block; width: 60px; height: 34px; }
-        .toggle-switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
-        .slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
-        input:checked + .slider { background-color: #2196F3; }
-        input:checked + .slider:before { transform: translateX(26px); }
+        .button-group button:hover { background-color: #0056b3; }
+        .button-group button#resetView { background-color: #6c757d; }
+        .button-group button#resetView:hover { background-color: #5a6268; }
+        .button-group button#zoomBtn { background-color: var(--secondary-color); grid-column: 1 / -1; }
+        .button-group button#zoomBtn:hover { background-color: #218838; }
+        .button-group button:disabled { background-color: #aaa; cursor: not-allowed; }
+        .render-area { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+        .canvas-container { background-color: var(--panel-bg); padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px var(--shadow-color); }
+        h2, h3 { text-align: center; margin: 0 0 10px 0; }
+        hr { border: 0; height: 1px; background-color: var(--border-color); margin: 20px 0; }
+        canvas { border: 1px solid var(--border-color); cursor: grab; display: block; }
+        canvas:active { cursor: grabbing; }
+        .stats { margin-top: 10px; text-align: center; font-size: 1.1em; font-weight: bold; color: #28a745; }
     </style>
 </head>
 <body>
-    <canvas id="mandelbrot-canvas"></canvas>
 
-    <div id="controls-container">
-        <div id="info" class="control-panel">
-            <h2 id="renderer-title">Wasm版</h2>
-            <p>マウスホイールでズーム、ドラッグで移動</p>
-            <p id="zoom-level"></p>
-            <p id="iterations-count"></p>
-            <p id="render-time"></p>
+    <h1>Mandelbrot Renderer: Wasm vs JavaScript</h1>
+
+    <div class="main-container">
+        <div class="controls">
+            <h2>⚙️ Controls</h2>
+            <div class="control-group">
+                <label for="centerX">Center X</label>
+                <input type="number" id="centerX" step="0.01">
+            </div>
+            <div class="control-group">
+                <label for="centerY">Center Y</label>
+                <input type="number" id="centerY" step="0.01">
+            </div>
+            <div class="control-group">
+                <label for="scale">Scale</label>
+                <input type="number" id="scale" step="0.1">
+            </div>
+            <div class="control-group">
+                <label for="maxIterations">Max Iterations</label>
+                <input type="number" id="maxIterations" step="50">
+            </div>
+             <div class="control-group">
+                <label for="bailout">Bailout Radius</label>
+                <input type="number" id="bailout" step="1">
+            </div>
+            <div class="button-group">
+                <button id="renderBtn">Apply & Render</button>
+                <button id="resetView">Reset View</button>
+            </div>
+            
+            <hr>
+
+            <h3>✨ Animation Tweaks</h3>
+             <div class="control-group">
+                <label for="animTargetZoom">最終的なズーム倍率 (x)</label>
+                <input type="number" id="animTargetZoom" step="10">
+            </div>
+             <div class="control-group">
+                <label for="animFrameMultiplier">1フレーム毎のズーム倍率</label>
+                <input type="number" id="animFrameMultiplier" step="0.01">
+            </div>
+            <div class="button-group">
+                 <button id="zoomBtn">Animate Zoom</button>
+            </div>
         </div>
 
-        <div id="renderer-toggle" class="control-panel">
-            <h3>描画エンジン</h3>
-            <span>JavaScript</span>
-            <label class="toggle-switch">
-                <input type="checkbox" id="engine-toggle" checked>
-                <span class="slider"></span>
-            </label>
-            <span>Wasm</span>
-        </div>
-
-        <div id="animation-controls" class="control-panel">
-          <h3>アニメーションズーム</h3>
-          <div><label>ターゲット X:</label><input type="text" id="animate-target-x" value="-0.7885"></div>
-          <div><label>ターゲット Y:</label><input type="text" id="animate-target-y" value="0.1385"></div>
-          <div><label>ズームステップ:</label><input type="number" id="animate-steps" value="100" min="1"></div>
-          <div><label>ズーム倍率:</label><input type="number" id="animate-zoom-factor" value="0.98" min="0.5" max="0.999" step="0.001"></div>
-          <button id="start-animation-button">アニメーション開始</button>
+        <div class="render-area">
+            <div class="canvas-container">
+                <h2>📜 JavaScript</h2>
+                <canvas id="jsCanvas" width="500" height="500"></canvas>
+                <div id="jsStats" class="stats">Time: ... ms</div>
+            </div>
+            <div class="canvas-container">
+                <h2>🦀 WebAssembly</h2>
+                <canvas id="wasmCanvas" width="500" height="500"></canvas>
+                <div id="wasmStats" class="stats">Time: ... ms</div>
+            </div>
         </div>
     </div>
-    <script type="module">
-        // JavaScript部分は変更ありません
-        const canvas = document.getElementById('mandelbrot-canvas');
-        const ctx = canvas.getContext('2d');
-        const zoomLevelEl = document.getElementById('zoom-level');
-        const iterationsCountEl = document.getElementById('iterations-count');
-        const renderTimeEl = document.getElementById('render-time');
-        const engineToggle = document.getElementById('engine-toggle');
-        const rendererTitle = document.getElementById('renderer-title');
 
-        let centerX = -0.75, centerY = 0.0, scale = 3.5, maxIterations = 50;
-        let needsRedraw = true;
-        let renderer = null;
-
-        const requestDraw = () => { needsRedraw = true; };
-
-        const draw = () => {
-            if (!needsRedraw || !renderer) {
-                requestAnimationFrame(draw);
-                return;
-            }
-            needsRedraw = false;
-            maxIterations = Math.floor(50 + Math.max(0, -Math.log10(scale) * 25));
-
-            const startTime = performance.now();
-            renderer.render(ctx, canvas.width, canvas.height, centerX, centerY, scale, maxIterations);
-            const endTime = performance.now();
-
-            zoomLevelEl.textContent = `ズーム: x${(1 / scale).toExponential(2)}`;
-            iterationsCountEl.textContent = `計算回数: ${maxIterations}`;
-            renderTimeEl.textContent = `描画時間: ${(endTime - startTime).toFixed(2)} ms`;
-            requestAnimationFrame(draw);
-        };
-        
-        async function switchRenderer() {
-            const useWasm = engineToggle.checked;
-            rendererTitle.textContent = useWasm ? "Wasm版" : "JavaScript版";
-            const rendererModule = useWasm ? await import('./renderer_wasm.js') : await import('./renderer_js.js');
-            renderer = await rendererModule.initialize();
-            requestDraw();
-        }
-        engineToggle.addEventListener('change', switchRenderer);
-        
-        const resizeCanvas = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
-        window.addEventListener('resize', () => { resizeCanvas(); requestDraw(); });
-
-        canvas.addEventListener('wheel', event => {
-            event.preventDefault();
-            const zoomFactor = event.deltaY < 0 ? 0.90 : 1.10;
-            const rect = canvas.getBoundingClientRect();
-            const mouseX = event.clientX - rect.left, mouseY = event.clientY - rect.top;
-            const aspect = canvas.width / canvas.height;
-            const pointX = centerX + (mouseX / canvas.width - 0.5) * scale * aspect;
-            const pointY = centerY + (mouseY / canvas.height - 0.5) * scale;
-            scale *= zoomFactor;
-            centerX = pointX - (pointX - centerX) * zoomFactor;
-            centerY = pointY - (pointY - centerY) * zoomFactor;
-            requestDraw();
-        });
-        
-        let isDragging = false, lastX, lastY;
-        canvas.addEventListener('mousedown', e => { isDragging = true; lastX = e.clientX; lastY = e.clientY; });
-        canvas.addEventListener('mousemove', e => {
-            if (!isDragging) return;
-            const dx = e.clientX - lastX, dy = e.clientY - lastY;
-            const aspect = canvas.width / canvas.height;
-            centerX -= (dx / canvas.width) * scale * aspect;
-            centerY -= (dy / canvas.height) * scale;
-            lastX = e.clientX; lastY = e.clientY;
-            requestDraw();
-        });
-        window.addEventListener('mouseup', () => { isDragging = false; });
-        
-        canvas.addEventListener('click', e => {
-            const rect = canvas.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top;
-            const aspect = canvas.width / canvas.height;
-            const pointX = centerX + (mouseX / canvas.width - 0.5) * scale * aspect;
-            const pointY = centerY + (mouseY / canvas.height - 0.5) * scale;
-            document.getElementById('animate-target-x').value = pointX.toExponential(10);
-            document.getElementById('animate-target-y').value = pointY.toExponential(10);
-        });
-
-        let animationIntervalId = null;
-        document.getElementById('start-animation-button').addEventListener('click', () => {
-            if (animationIntervalId) clearInterval(animationIntervalId);
-            const targetX = parseFloat(document.getElementById('animate-target-x').value);
-            const targetY = parseFloat(document.getElementById('animate-target-y').value);
-            let steps = parseInt(document.getElementById('animate-steps').value, 10);
-            const zoomPerStep = parseFloat(document.getElementById('animate-zoom-factor').value);
-            
-            animationIntervalId = setInterval(() => {
-                if (steps-- > 0) {
-                    centerX += (targetX - centerX) * 0.1;
-                    centerY += (targetY - centerY) * 0.1;
-                    scale *= zoomPerStep;
-                    requestDraw();
-                } else {
-                    clearInterval(animationIntervalId);
-                }
-            }, 30);
-        });
-        
-        resizeCanvas();
-        switchRenderer();
-        draw();
-    </script>
+    <script type="module" src="main.js"></script>
 </body>
 </html>
