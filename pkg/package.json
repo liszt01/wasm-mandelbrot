@@ -1,0 +1,15 @@
+{
+  "name": "mandelbrot_zoom",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "mandelbrot_zoom_bg.wasm",
+    "mandelbrot_zoom.js",
+    "mandelbrot_zoom.d.ts"
+  ],
+  "main": "mandelbrot_zoom.js",
+  "types": "mandelbrot_zoom.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
